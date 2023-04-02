@@ -1,4 +1,4 @@
-#the NodePort service will create based on the pods where the lables of the pods have the below
+#the NodePort service will create based on the pods where the lables of the pods have the below.
 apiVersion: v1
 kind: Service
 metadata:
