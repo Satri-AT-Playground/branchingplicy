@@ -1,0 +1,59 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureSubscription: '<your-subscription>'
+  appName: '<your-app-name>'
+  majorVersion: '1'
+  minorVersion: $[counter(format('{0:yyyyMMdd-HHmm}', pipelineStartTime), 0)]
+  buildNumber: $[counter(format('{0:yyyyMMdd-HHmm}', pipelineStartTime), 100)]
+
+stages:
+- stage: Build
+  displayName: 'Build and package application'
+  jobs:
+  - job: Build
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '10.x'
+      displayName: 'Install Node.js'
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Build application'
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)/dist'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)'
+      displayName: 'Copy application files'
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish build artifacts'
+      inputs:
+        artifactName: 'drop'
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        publishLocation: 'pipeline'
+
+- stage: Deploy
+  displayName: 'Deploy application'
+  dependsOn: Build
+  jobs:
+  - job: Deploy
+    steps:
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download build artifacts'
+      inputs:
+        artifactName: 'drop'
+        path: '$(System.ArtifactsDirectory)'
+      condition: succeeded()
+    - task: AzureWebApp@1
+      displayName: 'Deploy to Azure App Service'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        appName: $(appName)
+        package: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId)/**/*.zip'
+        version: '$(majorVersion).$(minorVersion).$(buildNumber)'
